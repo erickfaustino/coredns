@@ -8,7 +8,10 @@ import (
 	"github.com/coredns/coredns/plugin"
 )
 
-func init() { plugin.Register("k8szoneaware", setupK8sZoneAware) }
+func init() {
+	GetAllResources()
+	plugin.Register("k8szoneaware", setupK8sZoneAware)
+}
 
 func setupK8sZoneAware(c *caddy.Controller) error {
 	c.Next()
@@ -16,7 +19,7 @@ func setupK8sZoneAware(c *caddy.Controller) error {
 		return plugin.Error("k8szoneaware", c.ArgErr())
 	}
 	dnsserver.GetConfig(c).AddPlugin(func(next plugin.Handler) plugin.Handler {
-		return K8sZoneAware{}
+		return K8sZoneAware{k8scli: GetK8sClient()}
 	})
 	return nil
 }

@@ -11,12 +11,14 @@ import (
 	"github.com/coredns/coredns/request"
 	"github.com/miekg/dns"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 )
 
 var log = clog.NewWithPlugin("k8szoneaware")
 
 type K8sZoneAware struct {
-	Next plugin.Handler
+	Next   plugin.Handler
+	k8scli *kubernetes.Clientset
 }
 
 func (kza K8sZoneAware) Name() string { return "k8szoneaware" }
@@ -32,18 +34,22 @@ func (kza K8sZoneAware) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *d
 	ip := state.IP()
 	log.Infof("requester: %s", ip)
 
-	client, _ := GetK8sClient()
 	fs := fmt.Sprintf("status.podIP==%s", ip)
-	requestOrigin, err := client.CoreV1().Pods("").List(metav1.ListOptions{FieldSelector: fs})
+	requestOrigin, err := kza.k8scli.CoreV1().Pods("").List(metav1.ListOptions{FieldSelector: fs})
 	if err != nil {
 		log.Fatal(err)
 	}
-	sel := GetSelectorsFromSvc(questionsplit[0], questionsplit[1], client)
+	sel := GetSelectorsFromSvc(questionsplit[0], questionsplit[1])
 	log.Infof("question: %s", questionsplit)
-	lp := GetPodsFromSvc(questionsplit[1], sel, client)
-	nodezone := NodeZone(requestOrigin.Items[0].GetName(), requestOrigin.Items[0].GetNamespace(), client)
+	log.Infof("selector: %s", sel)
+	lp := GetPodsFromSvc(questionsplit[1], sel, kza.k8scli)
+	log.Infof("pods do svc: %s", lp.Items[0].GetName())
+	log.Infof("pods do svc: %s", lp.Items[1].GetName())
+	log.Infof("pods do svc: %s", lp.Items[2].GetName())
+	log.Infof("pods do svc: %s", lp.Items[3].GetName())
+	nodezone := NodeZone(requestOrigin.Items[0].Spec.NodeName)
 	log.Infof("zona do node: %s", nodezone)
-	podIps := PodsFromZoness(questionsplit[1], lp, nodezone, client)
+	podIps := PodsFromZones(questionsplit[1], lp, nodezone)
 	log.Infof("ips que retornaram: %s", podIps)
 
 	rr := new(dns.A)
