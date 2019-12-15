@@ -10,6 +10,7 @@ import (
 
 func init() {
 	GetAllResources()
+	GetResources()
 	plugin.Register("k8szoneaware", setupK8sZoneAware)
 }
 
