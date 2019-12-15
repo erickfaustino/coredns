@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"time"
 
 	"github.com/coredns/coredns/plugin"
 	clog "github.com/coredns/coredns/plugin/pkg/log"
@@ -26,6 +27,8 @@ func (kza K8sZoneAware) Name() string { return "k8szoneaware" }
 func (kza K8sZoneAware) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg) (int, error) {
 
 	log.Info("We received this query!\n")
+	d := time.Now()
+	log.Infof("Time: %s\n", d.String())
 	state := request.Request{W: w, Req: r}
 	a := &dns.Msg{}
 	a.SetReply(r)
@@ -51,10 +54,12 @@ func (kza K8sZoneAware) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *d
 	rr := new(dns.A)
 	rr.Hdr = dns.RR_Header{Name: state.QName(), Rrtype: dns.TypeA, Class: state.QClass(), Ttl: 10}
 	rr.A = net.ParseIP(podIps[0])
-	log.Infof("Reply: %s", podIps[0])
+	clog.Infof("Reply: %s", podIps[0])
 	a.Extra = []dns.RR{rr}
 	r.Answer = a.Extra
 	w.WriteMsg(r)
+	f := time.Now()
+	log.Info(f.Sub(d).Milliseconds())
 	return plugin.NextOrFailure(kza.Name(), kza.Next, ctx, w, r)
 
 }

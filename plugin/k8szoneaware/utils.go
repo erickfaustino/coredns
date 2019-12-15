@@ -26,13 +26,13 @@ import (
 //	return client, nil
 //}
 
+var Nodes = make(map[string]v1.Node)
+var Pods = make(map[string]v1.Pod)
+var Services = make(map[string]v1.Service)
+
 var AllSvcs *v1.ServiceList
 var AllPods *v1.PodList
 var AllNodes *v1.NodeList
-
-var Nodes map[string]*v1.Node
-var Pods map[string]*v1.Pod
-var Services map[string]*v1.Service
 
 func GetAllResources() {
 	cli := GetK8sClient()
@@ -43,14 +43,17 @@ func GetAllResources() {
 
 func GetResources() {
 	for _, service := range AllSvcs.Items {
-		Services[fmt.Sprintf("%s/%s", service.GetNamespace(), service.GetName())] = &service
+		Services[fmt.Sprintf("%s/%s", service.Namespace, service.Name)] = service
 	}
 	for _, node := range AllNodes.Items {
-		Nodes[node.GetName()] = &node
+		Nodes[node.Name] = node
 	}
 	for _, pod := range AllPods.Items {
-		Pods[fmt.Sprintf("%s/%s", pod.GetNamespace(), pod.GetName())] = &pod
+		Pods[fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)] = pod
 	}
+	//clog.Info(Services)
+	//clog.Info(Pods)
+	//clog.Info(Nodes)
 }
 
 func GetK8sClient() *kubernetes.Clientset {
@@ -96,25 +99,12 @@ func PodsFromZones(namespace string, pods *v1.PodList, zoneName string) []string
 		n, ok := Nodes[pod.Spec.NodeName]
 		if !ok {
 			clog.Info("Pod's node not found")
+			return IpsFromPods
 		}
 		if n.GetLabels()["failure-domain.beta.kubernetes.io/zone"] == zoneName {
 			IpsFromPods = append(IpsFromPods, pod.Status.PodIP)
+			return IpsFromPods
 		}
 	}
 	return IpsFromPods
-}
-
-func MatchSelector(selector, labels map[string]string) bool {
-	t := 0
-	for k := range selector {
-		for lk := range labels {
-			if (k == lk) && (selector[k] == labels[lk]) {
-				t++
-			}
-		}
-	}
-	if len(selector) == t {
-		return true
-	}
-	return false
 }
