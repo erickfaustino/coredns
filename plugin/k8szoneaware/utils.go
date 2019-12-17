@@ -6,7 +6,6 @@ import (
 	clog "github.com/coredns/coredns/plugin/pkg/log"
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	// _ "k8s.io/client-go/plugin/pkg/client/auth"
@@ -50,10 +49,8 @@ func GetResources() {
 	}
 	for _, pod := range AllPods.Items {
 		Pods[fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)] = pod
+		Pods[fmt.Sprintf("%s", pod.Status.PodIP)] = pod
 	}
-	//clog.Info(Services)
-	//clog.Info(Pods)
-	//clog.Info(Nodes)
 }
 
 func GetK8sClient() *kubernetes.Clientset {
@@ -76,13 +73,20 @@ func GetSelectorsFromSvc(svcname, namespace string) map[string]string {
 	}
 	return svc.Spec.Selector
 }
-func GetPodsFromSvc(namespace string, selector map[string]string, k8sClient *kubernetes.Clientset) *v1.PodList {
-	set := labels.Set(selector)
-	pods, err := k8sClient.CoreV1().Pods(namespace).List(metav1.ListOptions{LabelSelector: set.AsSelector().String()})
-	if err != nil {
-		clog.Fatalf("could not get pods: %s", err)
+func GetPodsFromSvc(namespace string, selector map[string]string) []v1.Pod {
+	//set := labels.Set(selector)
+	//pods, err := k8sClient.CoreV1().Pods(namespace).List(metav1.ListOptions{LabelSelector: set.AsSelector().String()})
+	//if err != nil {
+	//	clog.Fatalf("could not get pods: %s", err)
+	//}
+	//return pods
+	var PodsFromSvc []v1.Pod
+	for _, pod := range Pods {
+		if MatchSelector(selector, pod.GetLabels()) {
+			PodsFromSvc = append(PodsFromSvc, pod)
+		}
 	}
-	return pods
+	return PodsFromSvc
 }
 
 func NodeZone(nodename string) string {
@@ -93,9 +97,9 @@ func NodeZone(nodename string) string {
 	return node.GetLabels()["failure-domain.beta.kubernetes.io/zone"]
 }
 
-func PodsFromZones(namespace string, pods *v1.PodList, zoneName string) []string {
+func PodsFromZones(namespace string, pods []v1.Pod, zoneName string) []string {
 	IpsFromPods := make([]string, 0)
-	for _, pod := range pods.Items {
+	for _, pod := range pods {
 		n, ok := Nodes[pod.Spec.NodeName]
 		if !ok {
 			clog.Info("Pod's node not found")
@@ -107,4 +111,19 @@ func PodsFromZones(namespace string, pods *v1.PodList, zoneName string) []string
 		}
 	}
 	return IpsFromPods
+}
+
+func MatchSelector(selector, labels map[string]string) bool {
+	t := 0
+	for k := range selector {
+		for lk := range labels {
+			if (k == lk) && (selector[k] == labels[lk]) {
+				t++
+			}
+		}
+	}
+	if len(selector) == t {
+		return true
+	}
+	return false
 }
