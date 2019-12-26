@@ -11,6 +11,10 @@ import (
 	// _ "k8s.io/client-go/plugin/pkg/client/auth"
 )
 
+const (
+	zoneLabel = "failure-domain.beta.kubernetes.io/zone"
+)
+
 //func GetK8sClient() (*kubernetes.Clientset, error) {
 //	kubeconfig := os.Getenv("KUBECONFIG")
 //	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
@@ -49,7 +53,7 @@ func GetResources() {
 	}
 	for _, pod := range AllPods.Items {
 		Pods[fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)] = pod
-		Pods[fmt.Sprintf("%s", pod.Status.PodIP)] = pod
+		Pods[pod.Status.PodIP] = pod
 	}
 }
 
@@ -74,12 +78,6 @@ func GetSelectorsFromSvc(svcname, namespace string) map[string]string {
 	return svc.Spec.Selector
 }
 func GetPodsFromSvc(namespace string, selector map[string]string) []v1.Pod {
-	//set := labels.Set(selector)
-	//pods, err := k8sClient.CoreV1().Pods(namespace).List(metav1.ListOptions{LabelSelector: set.AsSelector().String()})
-	//if err != nil {
-	//	clog.Fatalf("could not get pods: %s", err)
-	//}
-	//return pods
 	var PodsFromSvc []v1.Pod
 	for _, pod := range Pods {
 		if MatchSelector(selector, pod.GetLabels()) {
@@ -94,7 +92,7 @@ func NodeZone(nodename string) string {
 	if !ok {
 		return ""
 	}
-	return node.GetLabels()["failure-domain.beta.kubernetes.io/zone"]
+	return node.GetLabels()[zoneLabel]
 }
 
 func PodsFromZones(namespace string, pods []v1.Pod, zoneName string) []string {
@@ -105,7 +103,7 @@ func PodsFromZones(namespace string, pods []v1.Pod, zoneName string) []string {
 			clog.Info("Pod's node not found")
 			return IpsFromPods
 		}
-		if n.GetLabels()["failure-domain.beta.kubernetes.io/zone"] == zoneName {
+		if n.GetLabels()[zoneLabel] == zoneName {
 			IpsFromPods = append(IpsFromPods, pod.Status.PodIP)
 			return IpsFromPods
 		}
@@ -114,16 +112,13 @@ func PodsFromZones(namespace string, pods []v1.Pod, zoneName string) []string {
 }
 
 func MatchSelector(selector, labels map[string]string) bool {
-	t := 0
+	count := 0
 	for k := range selector {
 		for lk := range labels {
 			if (k == lk) && (selector[k] == labels[lk]) {
-				t++
+				count++
 			}
 		}
 	}
-	if len(selector) == t {
-		return true
-	}
-	return false
+	return len(selector) == count
 }

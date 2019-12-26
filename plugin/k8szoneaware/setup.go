@@ -20,7 +20,7 @@ func setupK8sZoneAware(c *caddy.Controller) error {
 		return plugin.Error("k8szoneaware", c.ArgErr())
 	}
 	dnsserver.GetConfig(c).AddPlugin(func(next plugin.Handler) plugin.Handler {
-		return K8sZoneAware{k8scli: GetK8sClient()}
+		return K8sZoneAware{}
 	})
 	return nil
 }
